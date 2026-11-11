@@ -28,6 +28,9 @@ flowchart LR
 | [`examples/helm-values.yaml`](examples/helm-values.yaml) | Helm values: image, pull secrets, probes, resources, security context |
 | [`examples/argocd-application.yaml`](examples/argocd-application.yaml) | Argo CD Application with automated sync and Kargo stage authorization |
 | [`examples/ingress-snippet.yaml`](examples/ingress-snippet.yaml) | Nginx Ingress + service routing pattern |
+| [`examples/qris-stack.md`](examples/qris-stack.md) | QRIS payment stack: Ingress → KrakenD → microservices (diagram + ops notes) |
+| [`examples/qris-krakend-gateway-excerpt.json`](examples/qris-krakend-gateway-excerpt.json) | KrakenD JWT + backend routing excerpt |
+| [`examples/qris-ingress-values.yaml`](examples/qris-ingress-values.yaml) | Helm values for gateway Ingress/TLS |
 
 ## Related public work
 

@@ -1,0 +1,37 @@
+# Helm values excerpt — KrakenD gateway behind Ingress (anonymized)
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /api/qris
+          pathType: Prefix
+  tls:
+    - secretName: api-example-tls
+      hosts:
+        - api.example.com
+
+service:
+  type: ClusterIP
+  port: 8080
+
+image:
+  repository: registry.git.example.com/payments/krakend-custom
+  tag: "0.2.0-abc1234"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+# qris-api, qris-bank, qris-recon deploy as separate Helm releases in namespace payments
