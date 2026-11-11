@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: analytics-worker
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: analytics-worker
+    environment: production
+  annotations:
+    kargo.akuity.io/authorized-stage: kargo-example:production
+spec:
+  project: platform
+  source:
+    repoURL: https://git.example.com/manifests/analytics-worker-helm.git
+    targetRevision: main
+    path: .
+    helm:
+      releaseName: analytics-worker
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: analytics-worker
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

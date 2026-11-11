@@ -1,0 +1,91 @@
+# Reference pipeline — anonymized from production GitOps delivery
+# Stages: semgrep → test → build → scan → (optional) promote via Kargo warehouse refresh
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+
+stages:
+  - semgrep
+  - test
+  - build
+  - scan
+
+variables:
+  GO_VERSION: "1.23"
+  IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_BUILDKIT: 1
+  KARGO_API_URL: "https://kargo.internal.example:443"
+  KARGO_PROJECT: "kargo-example-worker"
+  IMAGE_TAG: "v0.1.${CI_PIPELINE_IID}-${CI_COMMIT_SHORT_SHA}"
+  KARGO_WAREHOUSE: "example-warehouse"
+
+.runner-tags: &runner-tags
+  tags:
+    - buildx
+    - docker
+
+.build-registry-login: &build-registry-login
+  - |
+    if ! echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"; then
+      echo "Registry login failed"
+      exit 1
+    fi
+
+semgrep:
+  stage: semgrep
+  image: semgrep/semgrep
+  <<: *runner-tags
+  script:
+    - semgrep scan --config auto --gitlab-sast --output gl-sast-report.json .
+  artifacts:
+    reports:
+      sast: gl-sast-report.json
+  allow_failure: true
+
+unit:build:
+  stage: test
+  image: golang:${GO_VERSION}-bookworm
+  <<: *runner-tags
+  script:
+    - go vet ./...
+    - CGO_ENABLED=0 go build -o /dev/null ./cmd/worker
+
+build:image:
+  stage: build
+  image: docker:24-cli
+  <<: *runner-tags
+  before_script:
+    - *build-registry-login
+    - docker buildx create --use --name ci-builder --driver docker-container --bootstrap 2>/dev/null || docker buildx use ci-builder
+  script:
+    - |
+      docker buildx build \
+        --push \
+        --platform linux/amd64 \
+        --file deploy/docker/Dockerfile \
+        --tag "${IMAGE}:${IMAGE_TAG}" \
+        --tag "${IMAGE}:latest" \
+        --cache-from "type=registry,ref=${IMAGE}:buildcache" \
+        --cache-to "type=registry,ref=${IMAGE}:buildcache,mode=max" \
+        "$CI_PROJECT_DIR"
+  after_script:
+    - |
+      if [ -n "${KARGO_TOKEN:-}" ]; then
+        curl -sk -X POST \
+          -H "Authorization: Bearer $KARGO_TOKEN" \
+          "$KARGO_API_URL/v1beta1/projects/$KARGO_PROJECT/warehouses/$KARGO_WAREHOUSE/refresh" || true
+      fi
+  needs: ["unit:build"]
+
+trivy:
+  stage: scan
+  image:
+    name: ghcr.io/aquasecurity/trivy:latest
+    entrypoint: [""]
+  <<: *runner-tags
+  script:
+    - trivy image --severity HIGH,CRITICAL "$IMAGE:$IMAGE_TAG" || true
+  needs: ["build:image"]
+  allow_failure: true

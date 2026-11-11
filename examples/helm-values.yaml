@@ -1,0 +1,68 @@
+# Helm values excerpt — generic worker on Kubernetes (no real endpoints)
+
+replicaCount: 1
+
+image:
+  repository: registry.git.example.com/platform/analytics-worker
+  tag: "v0.1.42-abc1234"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: git-registry-pull
+
+fullnameOverride: "analytics-worker"
+
+externalSecret:
+  name: worker-runtime-secret
+
+config:
+  APP_ENV: production
+  LOG_LEVEL: info
+  JOB_CRON: "0 0 * * *"
+  HTTP_TIMEOUT_SEC: "120"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "2"
+    memory: 1536Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 15
+  periodSeconds: 30
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+  hosts:
+    - host: api.example.internal
+      paths:
+        - path: /
+          pathType: Prefix
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
